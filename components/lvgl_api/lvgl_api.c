@@ -10,6 +10,7 @@ static const char *TAG = "lvgl_api";
 static lv_disp_t *lvgl_disp = NULL;
 
 void init_lvgl(int rotation) {
+    init_lcd();
     ESP_LOGI(TAG, "Initialize LVGL");
     const lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     ESP_ERROR_CHECK(lvgl_port_init(&lvgl_cfg));
