@@ -1,4 +1,6 @@
 build/
+images/
+fonts/doto_reg_24.c
 managed_components/
 .cache/
 .clang-format

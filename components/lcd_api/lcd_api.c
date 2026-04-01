@@ -3,6 +3,7 @@
 #include "driver/spi_common.h"
 #include "esp_err.h"
 #include "esp_lcd_panel_vendor.h"
+#include "esp_lcd_types.h"
 #include "esp_log.h"
 
 static const char *TAG = "lcd_api";
