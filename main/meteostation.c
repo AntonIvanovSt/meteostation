@@ -7,6 +7,7 @@
 #include "misc/lv_types.h"
 #include "scd41_api.h"
 #include "time_api.h"
+#include "weather_api.h"
 #include "wifi_connect.h"
 #include <stdio.h>
 #include <time.h>
@@ -19,22 +20,19 @@ static lv_obj_t *temp_label = NULL;
 static lv_obj_t *humidity_label = NULL;
 static lv_obj_t *co2_label = NULL;
 static lv_obj_t *info_label = NULL;
+static lv_obj_t *time_label = NULL;
+static lv_obj_t *date_label = NULL;
 
 static const char *TAG = "MAIN";
 
 // START SCREEN
 void create_start_screen(void) {
-    extern lv_font_t doto_reg_40;
     extern lv_font_t kode_mono_24;
     screen_start = create_background(COLOR_BLACK);
 
     if (screen_start != NULL) {
-        create_label(screen_start, &doto_reg_40, COLOR_WHITE, 50, 30,
-                     "Russian");
-        create_label(screen_start, &doto_reg_40, COLOR_WHITE, 60, 60,
-                     "Robotics");
-        info_label = create_label(screen_start, &kode_mono_24, COLOR_WHITE, 100,
-                                  110, "Initializing\n   WIFI");
+        info_label = create_label(screen_start, &kode_mono_24, COLOR_WHITE, 20,
+                                  30, "Initializing WIFI...");
     }
 }
 // END OF START SCREEN
@@ -50,12 +48,16 @@ void create_sensor_screen(void) {
                                       20, 150, "H: --");
         co2_label = create_label(screen_sensor, &kode_mono_24, COLOR_WHITE, 20,
                                  180, "C: --");
+        time_label = create_label(screen_sensor, &kode_mono_24, COLOR_CYAN, 20,
+                                  30, "00:00");
+        date_label = create_label(screen_sensor, &kode_mono_24, COLOR_CYAN, 20,
+                                  60, "YYYY/mm/dd");
     }
 }
 
-void update_sensor_screen(float co2, float temperature, float humidity) {
+void update_sensor_data(float co2, float temperature, float humidity) {
     if (temp_label == NULL || humidity_label == NULL || co2_label == NULL) {
-        ESP_LOGE(TAG, "Sensor screen not initialized");
+        ESP_LOGE(TAG, "Sensor was not initialized");
         return;
     }
     char sensor_buffer[64];
@@ -67,6 +69,21 @@ void update_sensor_screen(float co2, float temperature, float humidity) {
         lv_label_set_text(humidity_label, sensor_buffer);
         snprintf(sensor_buffer, sizeof(sensor_buffer), "C: %d ppm", (int)co2);
         lv_label_set_text(co2_label, sensor_buffer);
+        lvgl_port_unlock();
+    }
+}
+
+void update_time_data(time_data_t data) {
+    if (time_label == NULL || date_label == NULL) {
+        ESP_LOGE(TAG, "Time was not initialized");
+        return;
+    }
+    char time_buffer[64];
+    if (lvgl_port_lock(0)) {
+        strftime(time_buffer, sizeof(time_buffer), "%I:%M %p", &data.timeinfo);
+        lv_label_set_text(time_label, time_buffer);
+        strftime(time_buffer, sizeof(time_buffer), "%Y/%m/%d", &data.timeinfo);
+        lv_label_set_text(date_label, time_buffer);
         lvgl_port_unlock();
     }
 }
@@ -87,7 +104,7 @@ void d_scd41_task(void *pvParameters) {
 
     while (1) {
         if (xQueueReceive(queue, &data, pdMS_TO_TICKS(10000)) == pdTRUE) {
-            update_sensor_screen(data.co2, data.temperature, data.humidity);
+            update_sensor_data(data.co2, data.temperature, data.humidity);
         }
     }
 }
@@ -98,11 +115,21 @@ void d_time_task(void *pvParameters) {
 
     while (1) {
         if (xQueueReceive(queue, &data, pdMS_TO_TICKS(10000)) == pdTRUE) {
-            printf("time is: %d\n", data.timeinfo.tm_min);
+            update_time_data(data);
         }
     }
 }
 
+void d_weather_task(void *pvParameters) {
+    QueueHandle_t queue = (QueueHandle_t)pvParameters;
+    weather_data_t data;
+
+    while (1) {
+        if (xQueueReceive(queue, &data, pdMS_TO_TICKS(10000)) == pdTRUE) {
+            ESP_LOGI(TAG, "weather data is: %d", data.temperature);
+        }
+    }
+}
 // END OF SENSOR SCREEN
 
 void load_screen(lv_obj_t *screen) {
@@ -116,6 +143,7 @@ void app_main(void) {
 
     QueueHandle_t scd41_queue = xQueueCreate(1, sizeof(scd41_custom_t));
     QueueHandle_t time_queue = xQueueCreate(1, sizeof(time_data_t));
+    QueueHandle_t weather_queue = xQueueCreate(1, sizeof(weather_data_t));
 
     s_wifi_event_group = xEventGroupCreate();
     s_scd41_event_group = xEventGroupCreate();
@@ -129,18 +157,22 @@ void app_main(void) {
     xTaskCreate(wifi_connection_task, "wifi_task", 8192, NULL, 5, NULL);
 
     EventBits_t wifi_bits =
-        xEventGroupWaitBits(s_wifi_event_group, // the event group
-                            WIFI_READY,         // bits to watch
+        xEventGroupWaitBits(s_wifi_event_group,         // the event group
+                            WIFI_READY | WIFI_FAIL_BIT, // bits to watch
                             pdFALSE,      // don't clear bits after returning
-                            pdTRUE,       // wait for all bit
+                            pdFALSE,      // wait for ANY bit
                             portMAX_DELAY // wait forever
         );
 
     if (wifi_bits & WIFI_READY) {
-        lv_label_set_text(info_label, "Initializing\n   sensor");
+        lv_label_set_text(info_label, "Initializing sensor...");
         xTaskCreate(scd41_init_task, "scd41_init", 4096, NULL, 5, NULL);
     }
-
+    if (wifi_bits & WIFI_FAIL_BIT) {
+        lv_label_set_text(info_label,
+                          "Can not connect to WIFI\nrunning sensor only");
+        xTaskCreate(scd41_init_task, "scd41_init", 4096, NULL, 5, NULL);
+    }
     EventBits_t scd41_bits =
         xEventGroupWaitBits(s_scd41_event_group, // the event group
                             SCD41_READY,         // bits to watch
@@ -149,11 +181,18 @@ void app_main(void) {
                             portMAX_DELAY // wait forever
         );
 
-    if (scd41_bits & SCD41_READY) {
-        lv_label_set_text(info_label, "Initializing\n   time");
-        xTaskCreate(time_init_task, "time_init", 4096, NULL, 5, NULL);
+    if ((scd41_bits & SCD41_READY) && (wifi_bits & WIFI_FAIL_BIT)) {
+        create_sensor_screen();
+        load_screen(screen_sensor);
+
+        xTaskCreate(scd41_task, "scd41_task", 4096, scd41_queue, 5, NULL);
+        xTaskCreate(d_scd41_task, "scd41_rx_task", 4096, scd41_queue, 4, NULL);
     }
 
+    if ((scd41_bits & SCD41_READY) && (wifi_bits & WIFI_READY)) {
+        lv_label_set_text(info_label, "Initializing time...");
+        xTaskCreate(time_init_task, "time_init", 4096, NULL, 5, NULL);
+    }
     EventBits_t time_bits =
         xEventGroupWaitBits(s_time_event_group, // the event group
                             TIME_READY,         // bits to watch
@@ -170,6 +209,9 @@ void app_main(void) {
         xTaskCreate(d_scd41_task, "scd41_rx_task", 4096, scd41_queue, 4, NULL);
         xTaskCreate(time_task, "time_task", 8192, time_queue, 5, NULL);
         xTaskCreate(d_time_task, "time_rx_task", 4096, time_queue, 4, NULL);
+        xTaskCreate(weather_task, "weather_task", 8192, weather_queue, 5, NULL);
+        xTaskCreate(d_weather_task, "weather_rx_task", 4096, weather_queue, 4,
+                    NULL);
     }
     vTaskDelete(NULL);
 }
