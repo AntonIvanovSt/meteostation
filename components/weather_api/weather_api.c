@@ -4,7 +4,7 @@
 #include "esp_log.h"
 #include <string.h>
 
-#define WEATHER_API_KEY "f0a4621d3e004a6ea1875957261303"
+#define WEATHER_API_KEY "key"
 #define CITY "Tokyo"
 #define WEATHER_API_URL                                                        \
     "http://api.weatherapi.com/v1/current.json?key=" WEATHER_API_KEY           \
