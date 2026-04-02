@@ -1,10 +1,11 @@
 #include "weather_api.h"
 #include "cJSON.h"
 #include "esp_err.h"
+#include "esp_http_client.h"
 #include "esp_log.h"
 #include <string.h>
 
-#define WEATHER_API_KEY "key"
+#define WEATHER_API_KEY "f0a4621d3e004a6ea1875957261303"
 #define CITY "Tokyo"
 #define WEATHER_API_URL                                                        \
     "http://api.weatherapi.com/v1/current.json?key=" WEATHER_API_KEY           \
@@ -13,6 +14,7 @@
 #define MAX_HTTP_OUTPUT_BUFFER 2048
 static char http_response_buffer[MAX_HTTP_OUTPUT_BUFFER] = {0};
 static int response_len = 0;
+EventGroupHandle_t s_weather_event_group = NULL;
 
 static const char *TAG = "weather_api";
 
@@ -108,8 +110,7 @@ static esp_err_t parse_weather_response(const char *json_string,
         }
     }
     strncpy(out->condition, condition_text, sizeof(out->condition) - 1);
-    out->condition[sizeof(out->condition) - 1] =
-        '\0'; // guarantee null termination
+    out->condition[sizeof(out->condition) - 1] = '\0';
 
     ESP_LOGI(TAG,
              "Weather: %.1f°C feels %.1f°C, humidity %d%%, wind %.1f kph, "
@@ -128,6 +129,13 @@ static esp_http_client_config_t init_weather(void) {
         .timeout_ms = 10000,
     };
     return config;
+}
+
+static void reset_loop(esp_http_client_handle_t *client) {
+    ESP_LOGE(TAG, "Trying again in 5s.");
+    esp_http_client_cleanup(*client);
+    xEventGroupSetBits(s_weather_event_group, WEATHER_FALL_BIT);
+    vTaskDelay(pdMS_TO_TICKS(5000));
 }
 
 void weather_task(void *pvParameters) {
@@ -152,18 +160,25 @@ void weather_task(void *pvParameters) {
                     ESP_OK) {
                     xQueueOverwrite(weather_queue, &data);
                     ESP_LOGI(TAG, "Weather data pushed to queue");
+                    xEventGroupSetBits(s_weather_event_group, WEATHER_READY);
                 } else {
                     ESP_LOGE(TAG, "Failed to parse weather data");
+                    reset_loop(&client);
+                    continue;
                 }
             } else {
                 ESP_LOGE(TAG, "HTTP request failed with status: %d",
                          status_code);
+                reset_loop(&client);
+                continue;
             }
         } else {
             ESP_LOGE(TAG, "HTTP GET request failed: %s", esp_err_to_name(err));
+            reset_loop(&client);
+            continue;
         }
 
         esp_http_client_cleanup(client);
-        vTaskDelay(pdMS_TO_TICKS(30 * 1000));
+        vTaskDelay(pdMS_TO_TICKS(60 * 60 * 1000));
     }
 }

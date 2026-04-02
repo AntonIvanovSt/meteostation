@@ -22,8 +22,12 @@ void init_time(void) {
 
     int retry = 0;
     while (esp_sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && retry < 10) {
-        ESP_LOGI(TAG, "Waiting for time sync... (%d/10)", ++retry);
+        ESP_LOGI(TAG, "Waiting for time sync... (%d/10)", retry++);
         vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+    if (esp_sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && retry > 10) {
+        ESP_LOGE(TAG, "Time sync failed after 10 retries");
+        xEventGroupSetBits(s_time_event_group, TIME_FALL_BIT);
     }
 }
 

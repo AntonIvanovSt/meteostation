@@ -6,6 +6,7 @@
 #include "time_api.h"
 
 #define TIME_READY BIT0
+#define TIME_FALL_BIT BIT1
 
 extern EventGroupHandle_t s_time_event_group;
 

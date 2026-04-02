@@ -1,7 +1,11 @@
 #ifndef WEATHER_API_H_
 #define WEATHER_API_H_
 
+#define WEATHER_READY BIT0
+#define WEATHER_FALL_BIT BIT1
 #include "esp_http_client.h"
+
+extern EventGroupHandle_t s_weather_event_group;
 
 typedef struct {
     float temperature;

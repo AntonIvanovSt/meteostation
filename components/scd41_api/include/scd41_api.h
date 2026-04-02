@@ -13,6 +13,7 @@
 #define I2C_MASTER_SDA_IO 21
 
 #define SCD41_READY BIT0
+#define SCD41_FALL_BIT BIT1
 
 extern EventGroupHandle_t s_scd41_event_group;
 

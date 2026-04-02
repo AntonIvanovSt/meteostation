@@ -43,6 +43,7 @@ esp_err_t read_scd41(scd41_custom_t *out) {
     esp_err_t ret = scd41_read_measurement(&data);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read SCD41: %s", esp_err_to_name(ret));
+        xEventGroupSetBits(s_scd41_event_group, SCD41_FALL_BIT);
         return ret;
     }
 
