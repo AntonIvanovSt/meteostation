@@ -4,8 +4,8 @@
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 
-#define WIFI_SSID "POCO X3 Pro"
-#define WIFI_PASSWORD "27112711"
+#define WIFI_SSID "ssid"
+#define WIFI_PASSWORD "pass"
 #define WIFI_AUTHMODE WIFI_AUTH_WPA2_PSK
 
 #define WIFI_CONNECTED_BIT BIT0
