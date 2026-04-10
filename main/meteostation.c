@@ -33,10 +33,10 @@ static const char *TAG = "MAIN";
 // START SCREEN
 void create_start_screen(void) {
     extern lv_font_t kode_mono_20;
-    screen_start = create_background(COLOR_BLACK);
+    screen_start = create_background(COLOR_WHITE);
 
     if (screen_start != NULL) {
-        info_label = create_label(screen_start, &kode_mono_20, COLOR_WHITE, 20,
+        info_label = create_label(screen_start, &kode_mono_20, COLOR_BLACK, 20,
                                   30, "Initializing WIFI...");
     }
 }
@@ -45,28 +45,28 @@ void create_start_screen(void) {
 // SENSOR SCREEN
 void create_sensor_screen(void) {
     extern lv_font_t kode_mono_20;
-    screen_sensor = create_background(COLOR_BLACK);
+    screen_sensor = create_background(COLOR_WHITE);
     if (screen_sensor != NULL) {
-        temp_label = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN, 20,
+        temp_label = create_label(screen_sensor, &kode_mono_20, COLOR_BLACK, 20,
                                   120, "T: --");
-        humidity_label = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN,
+        humidity_label = create_label(screen_sensor, &kode_mono_20, COLOR_BLACK,
                                       20, 150, "H: --");
-        co2_label = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN, 20,
+        co2_label = create_label(screen_sensor, &kode_mono_20, COLOR_BLACK, 20,
                                  180, "C: --");
-        time_label = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN, 20,
+        time_label = create_label(screen_sensor, &kode_mono_20, COLOR_BLACK, 20,
                                   30, "00:00");
-        date_label = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN, 20,
+        date_label = create_label(screen_sensor, &kode_mono_20, COLOR_BLACK, 20,
                                   60, "YYYY/mm/dd");
-        out_temp_l = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN, 170,
-                                  30, "T: --");
-        out_hum_l = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN, 170,
+        out_temp_l = create_label(screen_sensor, &kode_mono_20, COLOR_BLACK,
+                                  170, 30, "T: --");
+        out_hum_l = create_label(screen_sensor, &kode_mono_20, COLOR_BLACK, 170,
                                  90, "H: --");
         out_feels_like_l = create_label(screen_sensor, &kode_mono_20,
-                                        COLOR_CYAN, 170, 60, "(---)");
-        out_condition_l = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN,
-                                       170, 150, "---");
-        out_wind_l = create_label(screen_sensor, &kode_mono_20, COLOR_CYAN, 170,
-                                  120, "W: --");
+                                        COLOR_BLACK, 170, 60, "(---)");
+        out_condition_l = create_label(screen_sensor, &kode_mono_20,
+                                       COLOR_BLACK, 170, 150, "---");
+        out_wind_l = create_label(screen_sensor, &kode_mono_20, COLOR_BLACK,
+                                  170, 120, "W: --");
     }
 }
 

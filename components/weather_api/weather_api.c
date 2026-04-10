@@ -112,6 +112,12 @@ static esp_err_t parse_weather_response(const char *json_string,
     strncpy(out->condition, condition_text, sizeof(out->condition) - 1);
     out->condition[sizeof(out->condition) - 1] = '\0';
 
+    for (int i = 0; i < strlen(out->condition); i++) {
+        if (out->condition[i] == ' ') {
+            out->condition[i] = '\n';
+        }
+    }
+
     ESP_LOGI(TAG,
              "Weather: %.1f°C feels %.1f°C, humidity %d%%, wind %.1f kph, "
              "condition: %s",
