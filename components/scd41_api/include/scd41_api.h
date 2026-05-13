@@ -7,6 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "scd41.h"
+#include <freertos/task.h>
 
 #define TEST_I2C_PORT I2C_NUM_0
 #define I2C_MASTER_SCL_IO 22

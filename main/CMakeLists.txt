@@ -5,5 +5,4 @@ idf_component_register(SRCS "meteostation.c"
                     scd41_api
                     time_api
                     weather_api
-                    wifi_connect
-                    )
+                    wifi_connect)
