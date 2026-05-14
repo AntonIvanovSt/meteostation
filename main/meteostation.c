@@ -1,3 +1,4 @@
+#include "buttons_api.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/projdefs.h"
@@ -276,6 +277,12 @@ void launch_display_tasks(QueueHandle_t scd41_queue, QueueHandle_t time_queue,
     }
 }
 
+static void on_button(button_id_t id, button_event_t event) {
+    if (id == BUTTON_1 && event == BUTTON_EVENT_PRESSED) {
+        ESP_LOGI("app", "Button 1 pressed!");
+    }
+}
+
 void app_main(void) {
     // QueueHandle_t scd41_queue = xQueueCreate(1, sizeof(scd41_custom_t));
     // QueueHandle_t time_queue = xQueueCreate(1, sizeof(time_data_t));
@@ -290,6 +297,8 @@ void app_main(void) {
     create_start_screen();
     load_screen(screen_start);
 
+    buttons_api_init();
+    buttons_api_register_callback(on_button);
     // bool wifi_ok = stage_wifi();
     // bool scd41_ok = stage_scd41(scd41_queue);
     // if (!scd41_ok) {
