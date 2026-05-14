@@ -37,7 +37,7 @@ void create_start_screen(void) {
 
     if (screen_start != NULL) {
         info_label = create_label(screen_start, &kode_mono_20, COLOR_BLACK, 20,
-                                  30, "Initializing WIFI...");
+                                  30, "WIFI credencials");
     }
 }
 // END OF START SCREEN
@@ -277,41 +277,41 @@ void launch_display_tasks(QueueHandle_t scd41_queue, QueueHandle_t time_queue,
 }
 
 void app_main(void) {
-    QueueHandle_t scd41_queue = xQueueCreate(1, sizeof(scd41_custom_t));
-    QueueHandle_t time_queue = xQueueCreate(1, sizeof(time_data_t));
-    QueueHandle_t weather_queue = xQueueCreate(1, sizeof(weather_data_t));
+    // QueueHandle_t scd41_queue = xQueueCreate(1, sizeof(scd41_custom_t));
+    // QueueHandle_t time_queue = xQueueCreate(1, sizeof(time_data_t));
+    // QueueHandle_t weather_queue = xQueueCreate(1, sizeof(weather_data_t));
+    //
+    // s_wifi_event_group = xEventGroupCreate();
+    // s_scd41_event_group = xEventGroupCreate();
+    // s_time_event_group = xEventGroupCreate();
+    // s_weather_event_group = xEventGroupCreate();
 
-    s_wifi_event_group = xEventGroupCreate();
-    s_scd41_event_group = xEventGroupCreate();
-    s_time_event_group = xEventGroupCreate();
-    s_weather_event_group = xEventGroupCreate();
-
-    init_lvgl(LV_DISP_ROT_90);
+    init_lvgl(LV_DISP_ROT_NONE);
     create_start_screen();
     load_screen(screen_start);
 
-    bool wifi_ok = stage_wifi();
-    bool scd41_ok = stage_scd41(scd41_queue);
-    if (!scd41_ok) {
-        lv_label_set_text(info_label, "Sensor error!\nCannot continue.");
-        ESP_LOGE(TAG, "SCD41 is required, halting");
-        vTaskDelete(NULL);
-    }
-    if (!wifi_ok) {
-        lv_label_set_text(info_label, "No WiFi\nSensor only mode");
-        launch_display_tasks(scd41_queue, NULL, NULL, true, false, false);
-        vTaskDelete(NULL);
-    }
-    bool time_ok = stage_time(time_queue);
-    if (!time_ok) {
-        lv_label_set_text(info_label, "Time syncing error.");
-    }
-    bool weather_ok = stage_weather(weather_queue);
-    if (!weather_ok) {
-        lv_label_set_text(info_label, "Weather fetching error.");
-    }
-
-    launch_display_tasks(scd41_queue, time_queue, weather_queue, scd41_ok,
-                         time_ok, weather_ok);
+    // bool wifi_ok = stage_wifi();
+    // bool scd41_ok = stage_scd41(scd41_queue);
+    // if (!scd41_ok) {
+    //     lv_label_set_text(info_label, "Sensor error!\nCannot continue.");
+    //     ESP_LOGE(TAG, "SCD41 is required, halting");
+    //     vTaskDelete(NULL);
+    // }
+    // if (!wifi_ok) {
+    //     lv_label_set_text(info_label, "No WiFi\nSensor only mode");
+    //     launch_display_tasks(scd41_queue, NULL, NULL, true, false, false);
+    //     vTaskDelete(NULL);
+    // }
+    // bool time_ok = stage_time(time_queue);
+    // if (!time_ok) {
+    //     lv_label_set_text(info_label, "Time syncing error.");
+    // }
+    // bool weather_ok = stage_weather(weather_queue);
+    // if (!weather_ok) {
+    //     lv_label_set_text(info_label, "Weather fetching error.");
+    // }
+    //
+    // launch_display_tasks(scd41_queue, time_queue, weather_queue, scd41_ok,
+    //                      time_ok, weather_ok);
     vTaskDelete(NULL);
 }
