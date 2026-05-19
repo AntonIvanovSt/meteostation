@@ -8,8 +8,6 @@
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
 #include "esp_wifi_types_generic.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -22,17 +20,12 @@
 #define ESP_WIFI_CHANNEL 1
 #define ESP_MAX_STA_CONN 2
 #define ESP_MAX_RETRY 5
-
 static const char *TAG = "wifi";
-
-// Event group to signal STA connection result
-static EventGroupHandle_t s_wifi_event_group;
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT BIT1
 
 static int s_retry_num = 0;
 static esp_netif_t *s_ap_netif = NULL;
 static esp_netif_t *s_sta_netif = NULL;
+EventGroupHandle_t s_wifi_event_group = NULL;
 
 // ─── Event Handler
 // ────────────────────────────────────────────────────────────
@@ -86,8 +79,6 @@ void nvs_init(void) {
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-
-    s_wifi_event_group = xEventGroupCreate();
 
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());

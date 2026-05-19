@@ -3,8 +3,11 @@
 
 #define WEATHER_READY BIT0
 #define WEATHER_FALL_BIT BIT1
-#include "esp_http_client.h"
 
+#include "esp_http_server.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "freertos/idf_additions.h"
 extern EventGroupHandle_t s_weather_event_group;
 
 typedef struct {
