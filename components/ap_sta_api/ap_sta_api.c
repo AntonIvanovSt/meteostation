@@ -8,6 +8,7 @@
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
 #include "esp_wifi_types_generic.h"
+#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -17,15 +18,51 @@
 
 #define ESP_WIFI_SSID "esp_soft_ap"
 #define ESP_WIFI_PASS "password"
+
+#define NVS_WIFI_NAMESPACE "wifi_creds"
+#define NVS_KEY_SSID "ssid"
+#define NVS_KEY_PASS "pass"
+
 #define ESP_WIFI_CHANNEL 1
 #define ESP_MAX_STA_CONN 2
 #define ESP_MAX_RETRY 5
-static const char *TAG = "wifi";
+static const char *TAG = "wifi_api";
 
 static int s_retry_num = 0;
 static esp_netif_t *s_ap_netif = NULL;
 static esp_netif_t *s_sta_netif = NULL;
 EventGroupHandle_t s_wifi_event_group = NULL;
+
+// NVS helper functions
+static void save_wifi_credentials(const char *ssid, const char *pass) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(NVS_WIFI_NAMESPACE, NVS_READWRITE, &handle);
+    if (err == ESP_OK) {
+        nvs_set_str(handle, NVS_KEY_SSID, ssid);
+        nvs_set_str(handle, NVS_KEY_PASS, pass);
+        nvs_commit(handle);
+        nvs_close(handle);
+        ESP_LOGI(TAG, "Credentials saved to NVS.");
+    } else {
+        ESP_LOGE(TAG, "Failed to open NVS to save credentials: %s",
+                 esp_err_to_name(err));
+    }
+}
+
+static bool load_wifi_credentials(char *ssid, size_t ssid_len, char *pass,
+                                  size_t pass_len) {
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(NVS_WIFI_NAMESPACE, NVS_READONLY, &handle);
+    if (err != ESP_OK) {
+        return false;
+    }
+
+    esp_err_t err_ssid = nvs_get_str(handle, NVS_KEY_SSID, ssid, &ssid_len);
+    esp_err_t err_pass = nvs_get_str(handle, NVS_KEY_PASS, pass, &pass_len);
+    nvs_close(handle);
+
+    return (err_ssid == ESP_OK && err_pass == ESP_OK);
+}
 
 // ─── Event Handler
 // ────────────────────────────────────────────────────────────
@@ -70,25 +107,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-// nvs init
-void nvs_init(void) {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
-        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-}
-
-// ─── SoftAP Init ─────────────────────────────────────────────────────────────
-
-void wifi_init_softap(void) {
-    s_ap_netif = esp_netif_create_default_wifi_ap();
-
+// Initialize baseline driver configs (run once regardless of AP or STA mode)
+static void wifi_init_base(void) {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
@@ -96,8 +116,56 @@ void wifi_init_softap(void) {
         WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(
         IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, NULL));
+}
 
-    wifi_config_t wifi_config = {
+// Automatically decides whether to load stored credentials or open captive
+// portal
+bool wifi_start_auto(void) {
+    char stored_ssid[64] = {0};
+    char stored_pass[64] = {0};
+
+    wifi_init_base();
+
+    if (load_wifi_credentials(stored_ssid, sizeof(stored_ssid), stored_pass,
+                              sizeof(stored_pass))) {
+        ESP_LOGI(TAG, "Found stored credentials for SSID: %s. Connecting...",
+                 stored_ssid);
+
+        s_sta_netif = esp_netif_create_default_wifi_sta();
+
+        wifi_config_t sta_config = {0};
+        strncpy((char *)sta_config.sta.ssid, stored_ssid,
+                sizeof(sta_config.sta.ssid) - 1);
+        strncpy((char *)sta_config.sta.password, stored_pass,
+                sizeof(sta_config.sta.password) - 1);
+
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
+        s_retry_num = 0;
+        ESP_ERROR_CHECK(esp_wifi_start());
+
+        EventBits_t bits = xEventGroupWaitBits(
+            s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT, pdFALSE,
+            pdFALSE, pdMS_TO_TICKS(15000));
+
+        if (bits & WIFI_CONNECTED_BIT) {
+            return true;
+        }
+
+        ESP_LOGW(TAG,
+                 "Stored credentials failed. Falling back to SoftAP mode.");
+        esp_wifi_stop();
+        if (s_sta_netif) {
+            esp_netif_destroy(s_sta_netif);
+            s_sta_netif = NULL;
+        }
+    }
+
+    // Fallback: No credentials found OR stored credentials failed to connect.
+    ESP_LOGI(TAG, "Starting provision configuration portal...");
+    s_ap_netif = esp_netif_create_default_wifi_ap();
+
+    wifi_config_t ap_config = {
         .ap =
             {
                 .ssid = ESP_WIFI_SSID,
@@ -110,15 +178,29 @@ void wifi_init_softap(void) {
             },
     };
     if (strlen(ESP_WIFI_PASS) == 0) {
-        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+        ap_config.ap.authmode = WIFI_AUTH_OPEN;
     }
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "SoftAP started. SSID:%s PASS:%s CH:%d", ESP_WIFI_SSID,
-             ESP_WIFI_PASS, ESP_WIFI_CHANNEL);
+    start_webserver();
+    return false; // Did not connect yet, portal active
+}
+
+// nvs init
+void nvs_init(void) {
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 }
 
 // ─── Switch to STA ───────────────────────────────────────────────────────────
@@ -169,7 +251,7 @@ static esp_err_t form_get_handler(httpd_req_t *req) {
 
 static void wifi_switch_task(void *param) {
     char *args = (char *)param;
-    vTaskDelay(pdMS_TO_TICKS(500)); // let HTTP response flush
+    vTaskDelay(pdMS_TO_TICKS(500)); // HTTP response flush
 
     char ssid[64] = {0}, pass[64] = {0};
     char *sep = strchr(args, '|');
@@ -179,6 +261,7 @@ static void wifi_switch_task(void *param) {
     }
     free(args);
 
+    save_wifi_credentials(ssid, pass);
     wifi_switch_to_sta(ssid, pass);
 
     EventBits_t bits = xEventGroupWaitBits(

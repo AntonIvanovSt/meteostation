@@ -26,6 +26,9 @@ static lv_obj_t *date_label = NULL;
 static lv_obj_t *out_temp_l = NULL;
 static lv_obj_t *out_feels_like_l = NULL;
 static lv_obj_t *out_wind_l = NULL;
+static lv_obj_t *out_temp_l_ = NULL;
+static lv_obj_t *out_feels_like_l_ = NULL;
+static lv_obj_t *out_wind_l_ = NULL;
 static lv_obj_t *out_hum_l = NULL;
 static lv_obj_t *out_condition_l = NULL;
 
@@ -54,10 +57,8 @@ void create_start_screen(void) {
     screen_start = create_background(COLOR_WHITE);
 
     if (screen_start != NULL) {
-        info_label = create_label(
-            screen_start, &oswald_regular_20, COLOR_BLACK, 10, 30,
-            "- Disconnect from any network\n- Connect to esp_soft_ap\n- Search "
-            "in your browser:\nhttp:\\\\192.168.4.1\\");
+        info_label = create_label(screen_start, &oswald_regular_20, COLOR_BLACK,
+                                  10, 30, "");
     }
 }
 // END OF START SCREEN
@@ -67,7 +68,25 @@ void create_sensor_screen(void) {
     extern lv_font_t oswald_medium_48;
     extern lv_font_t oswald_medium_20;
     extern lv_font_t oswald_regular_20;
+
+    static lv_point_precise_t horizontal_line_points[] = {
+        {0, 0},  // Start point (x, y)
+        {240, 0} // End point (x, y)
+    };
+    static lv_point_precise_t vertical_line_points[] = {
+        {0, 0},  // Start point (x, y)
+        {0, 234} // End point (x, y)
+    };
+    static lv_point_precise_t vertical_short_line_points[] = {
+        {0, 0}, // Start point (x, y)
+        {0, 86} // End point (x, y)
+    };
     screen_sensor = create_background(COLOR_WHITE);
+
+    create_line(horizontal_line_points, screen_sensor, COLOR_BLACK, 0, 86);
+    create_line(vertical_line_points, screen_sensor, COLOR_BLACK, 120, 86);
+    create_line(vertical_short_line_points, screen_sensor, COLOR_BLACK, 135, 0);
+
     if (screen_sensor != NULL) {
         // time labels
         time_label = create_label(screen_sensor, &oswald_medium_48, COLOR_BLACK,
@@ -76,57 +95,70 @@ void create_sensor_screen(void) {
                                   COLOR_BLACK, 13, 60, "YYYY/mm/dd");
         // --------
         // scd41 labels
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 10, 90,
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 5, 90,
                      "TEMPERATURE");
         create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 60, 113,
                      "°C");
         temp_label = create_label(screen_sensor, &oswald_medium_48, COLOR_BLACK,
-                                  10, 115, "");
+                                  10, 115, "00");
         temp_label_ = create_label(screen_sensor, &oswald_medium_20,
-                                   COLOR_BLACK, 60, 135, "");
+                                   COLOR_BLACK, 60, 137, ".0");
 
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 10, 165,
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 5, 165,
                      "HUMIDITY");
         create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 60, 188,
                      "%");
         humidity_label = create_label(screen_sensor, &oswald_medium_48,
-                                      COLOR_BLACK, 10, 190, "");
+                                      COLOR_BLACK, 10, 190, "00");
         humidity_label_ = create_label(screen_sensor, &oswald_medium_20,
-                                       COLOR_BLACK, 60, 210, "");
+                                       COLOR_BLACK, 60, 212, ".0");
 
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 10, 240,
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 5, 240,
                      "CO2 (ppm)");
         co2_label = create_label(screen_sensor, &oswald_medium_48, COLOR_BLACK,
-                                 10, 265, "");
+                                 10, 265, "1000");
         // --------
         // weatherapi labels
-        out_condition_l = create_label(screen_sensor, &oswald_medium_20,
-                                       COLOR_BLACK, 170, 10, "");
+        out_condition_l = create_label(screen_sensor, &oswald_regular_20,
+                                       COLOR_BLACK, 140, 5, "Partly cloudy");
 
         out_temp_l = create_label(screen_sensor, &oswald_medium_48, COLOR_BLACK,
-                                  170, 30, "");
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 210, 28,
+                                  145, 35, "25");
+        out_temp_l_ = create_label(screen_sensor, &oswald_medium_20,
+                                   COLOR_BLACK, 195, 57, ".3");
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 195, 33,
                      "°C");
 
         out_feels_like_l = create_label(screen_sensor, &oswald_medium_48,
-                                        COLOR_BLACK, 170, 115, "");
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 210, 113,
+                                        COLOR_BLACK, 130, 115, "26");
+        out_feels_like_l_ = create_label(screen_sensor, &oswald_medium_20,
+                                         COLOR_BLACK, 180, 137, ".7");
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 180, 113,
                      "°C");
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 120, 90,
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 125, 90,
                      "FEELS LIKE");
 
         out_hum_l = create_label(screen_sensor, &oswald_medium_48, COLOR_BLACK,
-                                 170, 190, "");
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 210, 188,
+                                 130, 190, "69");
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 180, 188,
                      "%");
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 120, 165,
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 125, 165,
                      "OUT HUMIDITY");
 
         out_wind_l = create_label(screen_sensor, &oswald_medium_48, COLOR_BLACK,
-                                  170, 265, "");
-        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 120, 240,
-                     "WIND (km/h)");
+                                  155, 265, "4");
+        out_wind_l_ = create_label(screen_sensor, &oswald_medium_20,
+                                   COLOR_BLACK, 180, 287, ".5");
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 125, 240,
+                     "WIND");
+        create_label(screen_sensor, &oswald_regular_20, COLOR_BLACK, 180, 263,
+                     "km/h");
     }
+}
+
+void set_x_pos(int max_x, int min_x, lv_obj_t *label, int data) {
+    int main_x_pos = (data < 10) ? max_x : min_x;
+    lv_obj_set_x(label, main_x_pos);
 }
 
 void update_time_data(time_data_t data) {
@@ -157,6 +189,7 @@ void update_sensor_data(float co2, float temperature, float humidity) {
         return;
     }
 
+    set_x_pos(35, 10, temp_label, (int)temperature);
     snprintf(buf, sizeof(buf), "%d", (int)temperature);
     lv_label_set_text(temp_label, buf);
     if (temp_label_ != NULL) {
@@ -164,6 +197,7 @@ void update_sensor_data(float co2, float temperature, float humidity) {
         lv_label_set_text(temp_label_, buf);
     }
 
+    set_x_pos(35, 10, humidity_label, (int)humidity);
     snprintf(buf, sizeof(buf), "%d", (int)humidity);
     lv_label_set_text(humidity_label, buf);
     if (humidity_label_ != NULL) {
@@ -180,35 +214,56 @@ void update_sensor_data(float co2, float temperature, float humidity) {
 void update_weather_data(weather_data_t data) {
     if (out_temp_l == NULL || out_condition_l == NULL ||
         out_feels_like_l == NULL || out_hum_l == NULL || out_wind_l == NULL) {
-        ESP_LOGE(TAG, "Weather was not fetched");
+        ESP_LOGE(TAG, "Weather labels not initialized or weather not fetched");
         return;
     }
-    ESP_LOGI(TAG, "Updating weather: %.1f°C, %s", data.temperature,
-             data.condition);
+
     char weather_buffer[64];
-    if (lvgl_port_lock(pdMS_TO_TICKS(100))) {
-        snprintf(weather_buffer, sizeof(weather_buffer), "%.1f",
-                 data.temperature);
-        lv_label_set_text(out_temp_l, weather_buffer);
 
-        snprintf(weather_buffer, sizeof(weather_buffer), "%d", data.humidity);
-        lv_label_set_text(out_hum_l, weather_buffer);
-
-        snprintf(weather_buffer, sizeof(weather_buffer), "%s", data.condition);
-        lv_label_set_text(out_condition_l, weather_buffer);
-
-        snprintf(weather_buffer, sizeof(weather_buffer), "%.1f",
-                 data.feels_like);
-        lv_label_set_text(out_feels_like_l, weather_buffer);
-
-        snprintf(weather_buffer, sizeof(weather_buffer), "%.1f",
-                 data.wind_speed);
-        lv_label_set_text(out_wind_l, weather_buffer);
-        lvgl_port_unlock();
-        ESP_LOGI(TAG, "Weather labels updated");
-    } else {
-        ESP_LOGW(TAG, "LVGL lock failed in update_weather_data");
+    if (!lvgl_port_lock(pdMS_TO_TICKS(100))) {
+        ESP_LOGW(TAG, "Could not acquire LVGL lock, skipping weather update");
+        return;
     }
+
+    set_x_pos(170, 145, out_temp_l, (int)data.temperature);
+    snprintf(weather_buffer, sizeof(weather_buffer), "%d",
+             (int)data.temperature);
+    lv_label_set_text(out_temp_l, weather_buffer);
+    if (out_temp_l_ != NULL) {
+        snprintf(weather_buffer, sizeof(weather_buffer), ".%d",
+                 abs((int)(data.temperature * 10.0f) % 10));
+        lv_label_set_text(out_temp_l_, weather_buffer);
+    }
+
+    set_x_pos(155, 130, out_hum_l, (int)data.humidity);
+    snprintf(weather_buffer, sizeof(weather_buffer), "%d", data.humidity);
+    lv_label_set_text(out_hum_l, weather_buffer);
+
+    snprintf(weather_buffer, sizeof(weather_buffer), "%s", data.condition);
+    lv_label_set_text(out_condition_l, weather_buffer);
+
+    set_x_pos(155, 130, out_feels_like_l, (int)data.feels_like);
+    snprintf(weather_buffer, sizeof(weather_buffer), "%d",
+             (int)data.feels_like);
+    lv_label_set_text(out_feels_like_l, weather_buffer);
+    if (out_feels_like_l_ != NULL) {
+        snprintf(weather_buffer, sizeof(weather_buffer), ".%d",
+                 abs((int)(data.feels_like * 10.0f) % 10));
+        lv_label_set_text(out_feels_like_l_, weather_buffer);
+    }
+
+    set_x_pos(155, 130, out_wind_l, (int)data.wind_speed);
+    snprintf(weather_buffer, sizeof(weather_buffer), "%d",
+             (int)data.wind_speed);
+    lv_label_set_text(out_wind_l, weather_buffer);
+    if (out_wind_l_ != NULL) {
+        snprintf(weather_buffer, sizeof(weather_buffer), ".%d",
+                 abs((int)(data.wind_speed * 10.0f) % 10));
+        lv_label_set_text(out_wind_l_, weather_buffer);
+    }
+
+    lvgl_port_unlock();
+    ESP_LOGI(TAG, "Weather labels updated");
 }
 
 void d_time_task(void *pvParameters) {
@@ -236,16 +291,10 @@ void d_scd41_task(void *pvParameters) {
 void d_weather_task(void *pvParameters) {
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     weather_data_t data;
-    ESP_LOGI(TAG, "d_weather_task started");
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(500));
         if (xQueueReceive(queue, &data, pdMS_TO_TICKS(10000)) == pdTRUE) {
-            ESP_LOGI(
-                TAG,
-                "Weather data received from queue"); // ← is queue delivering?
             update_weather_data(data);
-        } else {
-            ESP_LOGW(TAG, "Weather queue timeout"); // ← is it timing out?
         }
     }
 }
@@ -253,6 +302,14 @@ void d_weather_task(void *pvParameters) {
 // END OF SENSOR SCREEN
 
 bool stage_wifi(void) {
+    if (lvgl_port_lock(pdMS_TO_TICKS(100))) {
+        lv_label_set_text(info_label,
+                          "Initial connection\n- Disconnect from any "
+                          "network\n- Connect to "
+                          "esp_soft_ap\n- Search "
+                          "in your browser:\nhttp:\\\\192.168.4.1\\");
+        lvgl_port_unlock();
+    }
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
                                            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                                            pdFALSE, pdFALSE, portMAX_DELAY);
@@ -365,17 +422,24 @@ void app_main(void) {
     s_weather_event_group = xEventGroupCreate();
 
     init_lvgl(LV_DISP_ROTATION_0);
-
     create_start_screen();
 
-    nvs_init();
-    wifi_init_softap();
-    start_webserver();
+    if (lvgl_port_lock(pdMS_TO_TICKS(100))) {
+        lv_label_set_text(info_label, "Connecting to network");
+        lvgl_port_unlock();
+    }
 
-    stage_wifi();
+    load_screen(screen_start);
+
+    nvs_init();
+
+    bool connected = wifi_start_auto();
+
+    if (!connected) {
+        stage_wifi();
+    }
 
     create_sensor_screen();
-    load_screen(screen_sensor);
 
     if (stage_time(time_queue)) {
         create_task_checked(d_time_task, "time_rx_task", 2048, time_queue, 4);
@@ -389,6 +453,7 @@ void app_main(void) {
                             weather_queue, 4);
     }
 
-    load_screen(screen_start);
+    load_screen(screen_sensor);
+
     vTaskDelete(NULL);
 }
