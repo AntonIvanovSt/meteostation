@@ -3,4 +3,5 @@ idf_component_register(SRCS "ap_sta_api.c"
                     REQUIRES
                     nvs_flash
                     esp_wifi
-                    esp_http_server)
+                    esp_http_server
+                    lvgl esp_lvgl_port)

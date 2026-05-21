@@ -1,4 +1,5 @@
 #include "ap_sta_api.h"
+#include "button_api.h"
 #include "display/lv_display.h"
 #include "esp_log.h"
 #include "esp_lvgl_port.h"
@@ -423,15 +424,18 @@ void app_main(void) {
 
     init_lvgl(LV_DISP_ROTATION_0);
     create_start_screen();
+    wifi_register_info_label(info_label);
 
     if (lvgl_port_lock(pdMS_TO_TICKS(100))) {
-        lv_label_set_text(info_label, "Connecting to network");
+        lv_label_set_text(info_label, "System Booting...");
         lvgl_port_unlock();
     }
 
     load_screen(screen_start);
-
     nvs_init();
+
+    create_task_checked(on_off_button_task, "on_off_button_task", 2048, NULL,
+                        4);
 
     bool connected = wifi_start_auto();
 

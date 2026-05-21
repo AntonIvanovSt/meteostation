@@ -9,4 +9,5 @@ idf_component_register(SRCS "meteostation.c"
                     time_api
                     scd41_api
                     weather_api
+                    button_api
 )

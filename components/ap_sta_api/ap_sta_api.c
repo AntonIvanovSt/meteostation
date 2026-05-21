@@ -9,6 +9,7 @@
 #include "esp_wifi_default.h"
 #include "esp_wifi_types_generic.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
@@ -26,13 +27,15 @@
 #define ESP_WIFI_CHANNEL 1
 #define ESP_MAX_STA_CONN 2
 #define ESP_MAX_RETRY 5
+static int s_retry_num = 0;
 static const char *TAG = "wifi_api";
 
-static int s_retry_num = 0;
+static lv_obj_t *s_wifi_info_label = NULL;
 static esp_netif_t *s_ap_netif = NULL;
 static esp_netif_t *s_sta_netif = NULL;
 EventGroupHandle_t s_wifi_event_group = NULL;
 
+void wifi_register_info_label(lv_obj_t *label) { s_wifi_info_label = label; }
 // NVS helper functions
 static void save_wifi_credentials(const char *ssid, const char *pass) {
     nvs_handle_t handle;
@@ -107,102 +110,6 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-// Initialize baseline driver configs (run once regardless of AP or STA mode)
-static void wifi_init_base(void) {
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
-        WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(
-        IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, NULL));
-}
-
-// Automatically decides whether to load stored credentials or open captive
-// portal
-bool wifi_start_auto(void) {
-    char stored_ssid[64] = {0};
-    char stored_pass[64] = {0};
-
-    wifi_init_base();
-
-    if (load_wifi_credentials(stored_ssid, sizeof(stored_ssid), stored_pass,
-                              sizeof(stored_pass))) {
-        ESP_LOGI(TAG, "Found stored credentials for SSID: %s. Connecting...",
-                 stored_ssid);
-
-        s_sta_netif = esp_netif_create_default_wifi_sta();
-
-        wifi_config_t sta_config = {0};
-        strncpy((char *)sta_config.sta.ssid, stored_ssid,
-                sizeof(sta_config.sta.ssid) - 1);
-        strncpy((char *)sta_config.sta.password, stored_pass,
-                sizeof(sta_config.sta.password) - 1);
-
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
-        s_retry_num = 0;
-        ESP_ERROR_CHECK(esp_wifi_start());
-
-        EventBits_t bits = xEventGroupWaitBits(
-            s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT, pdFALSE,
-            pdFALSE, pdMS_TO_TICKS(15000));
-
-        if (bits & WIFI_CONNECTED_BIT) {
-            return true;
-        }
-
-        ESP_LOGW(TAG,
-                 "Stored credentials failed. Falling back to SoftAP mode.");
-        esp_wifi_stop();
-        if (s_sta_netif) {
-            esp_netif_destroy(s_sta_netif);
-            s_sta_netif = NULL;
-        }
-    }
-
-    // Fallback: No credentials found OR stored credentials failed to connect.
-    ESP_LOGI(TAG, "Starting provision configuration portal...");
-    s_ap_netif = esp_netif_create_default_wifi_ap();
-
-    wifi_config_t ap_config = {
-        .ap =
-            {
-                .ssid = ESP_WIFI_SSID,
-                .ssid_len = strlen(ESP_WIFI_SSID),
-                .channel = ESP_WIFI_CHANNEL,
-                .password = ESP_WIFI_PASS,
-                .max_connection = ESP_MAX_STA_CONN,
-                .authmode = WIFI_AUTH_WPA2_PSK,
-                .pmf_cfg = {.required = true},
-            },
-    };
-    if (strlen(ESP_WIFI_PASS) == 0) {
-        ap_config.ap.authmode = WIFI_AUTH_OPEN;
-    }
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    start_webserver();
-    return false; // Did not connect yet, portal active
-}
-
-// nvs init
-void nvs_init(void) {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
-        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-}
-
 // ─── Switch to STA ───────────────────────────────────────────────────────────
 
 static void wifi_switch_to_sta(const char *ssid, const char *pass) {
@@ -228,8 +135,143 @@ static void wifi_switch_to_sta(const char *ssid, const char *pass) {
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
 
     s_retry_num = 0;
-    ESP_ERROR_CHECK(
-        esp_wifi_start()); // triggers WIFI_EVENT_STA_START → connect
+    ESP_ERROR_CHECK(esp_wifi_start());
+}
+
+static void wifi_init_base(void) {
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(
+        IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL, NULL));
+}
+
+// Automatically decides whether to load stored credentials or open captive
+// portal
+bool wifi_start_auto(void) {
+    char stored_ssid[64] = {0};
+    char stored_pass[64] = {0};
+
+    wifi_init_base();
+
+    bool has_creds = load_wifi_credentials(stored_ssid, sizeof(stored_ssid),
+                                           stored_pass, sizeof(stored_pass));
+
+    ESP_LOGI(TAG, "Starting provision configuration portal...");
+    s_ap_netif = esp_netif_create_default_wifi_ap();
+
+    wifi_config_t ap_config = {
+        .ap =
+            {
+                .ssid = ESP_WIFI_SSID,
+                .ssid_len = strlen(ESP_WIFI_SSID),
+                .channel = ESP_WIFI_CHANNEL,
+                .password = ESP_WIFI_PASS,
+                .max_connection = ESP_MAX_STA_CONN,
+                .authmode = WIFI_AUTH_WPA2_PSK,
+                .pmf_cfg = {.required = true},
+            },
+    };
+    if (strlen(ESP_WIFI_PASS) == 0) {
+        ap_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    start_webserver();
+
+    if (!has_creds) {
+        ESP_LOGI(TAG, "No credentials found. Waiting for Web UI submission...");
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Stored credentials found. Waiting for button press to "
+                  "auto-connect OR Web UI interaction...");
+    if (lvgl_port_lock(pdMS_TO_TICKS(100))) {
+        lv_label_set_text(s_wifi_info_label,
+                          "Found saved network!\n"
+                          "- Press Button to connect\n"
+                          "- Or connect to AP:\n"
+                          "- Disconnect from any "
+                          "network\n- Connect to "
+                          "esp_soft_ap\n- Search "
+                          "in your browser:\nhttp:\\\\192.168.4.1\\");
+        lvgl_port_unlock();
+    }
+    EventBits_t bits = xEventGroupWaitBits(
+        s_wifi_event_group,
+        BUTTON_PROCEED_BIT | WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+        pdTRUE, // Clear bits on exit
+        pdFALSE, portMAX_DELAY);
+
+    // user pressed button - trigger connection to stored
+    // data
+    if (bits & BUTTON_PROCEED_BIT) {
+        ESP_LOGI(TAG, "Button pressed! Transitioning to stored network...");
+
+        if (lvgl_port_lock(pdMS_TO_TICKS(100))) {
+            lv_label_set_text(s_wifi_info_label, "Connecting to saved WiFi...");
+            lvgl_port_unlock();
+        }
+
+        wifi_switch_to_sta(stored_ssid, stored_pass);
+
+        // Wait for connection success/fail
+        EventBits_t conn_bits = xEventGroupWaitBits(
+            s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT, pdFALSE,
+            pdFALSE, pdMS_TO_TICKS(15000));
+
+        if (conn_bits & WIFI_CONNECTED_BIT) {
+            return true;
+        }
+
+        // If stored creds failed, fall back safely to AP mode again
+        ESP_LOGW(TAG, "Stored credentials failed. Re-enabling AP portal loop.");
+        if (lvgl_port_lock(pdMS_TO_TICKS(100))) {
+            lv_label_set_text(
+                s_wifi_info_label,
+                "Stored credentials failed.\nRe-enabling AP portal loop.");
+            vTaskDelay(pdMS_TO_TICKS(500));
+            lvgl_port_unlock();
+        }
+        wifi_switch_to_sta("", ""); // Clears STA mode or forces a reset state
+        // Re-init AP
+        ESP_ERROR_CHECK(esp_wifi_stop());
+        if (s_sta_netif) {
+            esp_netif_destroy(s_sta_netif);
+            s_sta_netif = NULL;
+        }
+        s_ap_netif = esp_netif_create_default_wifi_ap();
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+        ESP_ERROR_CHECK(esp_wifi_start());
+        return false;
+    }
+
+    // user used the Web UI instead of pressing the button while
+    // waiting
+    if (bits & WIFI_CONNECTED_BIT) {
+        return true;
+    }
+
+    return false;
+}
+
+// nvs init
+void nvs_init(void) {
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 }
 
 // ─── HTTP Handlers ───────────────────────────────────────────────────────────
